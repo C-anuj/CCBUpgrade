@@ -2,17 +2,11 @@
 from setuptools import setup
 
 setup(
-	name = 'ssgame',
+	name = 'CCBUpgrade',
 	version = '0.1.0',
 	author = 'Sidebolt Studios',
-	author_email = 'contact@sidebolt.com',
-	packages = [
-		'ssgame',
-	],
-	package_data = {
-		'ssgame': ['views/*.js'],
-	},
-	scripts = ['bin/ssgamed.py', 'bin/ssgame_schema.py', 'bin/sssaled.py', 'bin/ssleagued.py'],
-	url = 'http://eric.local/',
-	description = 'Social slots game libraries and daemon'
+	author_email = 'support@sidebolt.com',
+	scripts = ['bin/ccbup.py'],
+	url = 'http://sidebolt.com/',
+	description = 'Converts CocosBuilder 3 files to the SpriteBuilder 1.0 format.'
 )

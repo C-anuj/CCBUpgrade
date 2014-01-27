@@ -3,6 +3,14 @@
 import plistlib
 import argparse
 import logging
+import copy
+import os
+
+try:
+	import dimensions
+except ImportError:
+	logging.critical('Please install the \'dimensions\' Python package: sudo pip install dimensions')
+	exit(1)
 
 kCCBSizeTypeAbsolute = 0
 kCCBSizeTypePercent = 1
@@ -85,12 +93,81 @@ def stripCCLayer(node):
 		else:
 			node['baseClass'] = 'CCNode'
 		
-		# Strip invalid properties
-		stripProps = ['touchEnabled', 'mouseEnabled']
-		props = node['properties']
-		for prop in list(props):
-			if prop['name'] in stripProps:
-				props.remove(prop)
+	# Strip invalid properties
+	stripProps = ['touchEnabled', 'mouseEnabled']
+	props = node['properties']
+	for prop in list(props):
+		if prop['name'] in stripProps:
+			props.remove(prop)
+
+def stripTag(node):
+	props = node['properties']
+	for prop in list(props):
+		if prop['name'] == 'tag':
+			props.remove(prop)
+
+def imageSize(project, imagePath):
+	for resourcePath in project['resourcePaths']:
+		path = os.path.join(project['location'], resourcePath['path'])
+
+		finalPath = os.path.join(path, imagePath)
+		if os.path.isfile(finalPath):
+			return list(dimensions.dimensions(finalPath))[:2]
+
+		basename = os.path.basename(imagePath)
+		dirname = os.path.dirname(imagePath)
+
+		finalPath = os.path.join(path, dirname, 'resources-auto', basename)
+		if os.path.isfile(finalPath):
+			d = dimensions.dimensions(finalPath)
+			return [int(d[0] * 0.25), int(d[1] * 0.25)]
+
+		finalPath = os.path.join(path, basename, 'resources-iphone', basename)
+		if os.path.isfile(finalPath):
+			return list(dimensions.dimensions(finalPath))[:2]
+
+	return [0, 0]
+
+def stripCCMenu(project, node):
+	if node['baseClass'] == 'CCMenu':
+		node['baseClass'] = 'CCNode'
+	
+	if node['baseClass'] == 'CCMenuItemImage':
+		node['baseClass'] = 'CCButton'
+		normalSpriteFrame = None
+		for prop in node['properties']:
+			if prop['name'] == 'normalSpriteFrame':
+				prop['name'] = 'backgroundSpriteFrame|Normal'
+				normalSpriteFrame = prop
+			if prop['name'] == 'selectedSpriteFrame':
+				prop['name'] = 'backgroundSpriteFrame|Highlighted'
+			if prop['name'] == 'disabledSpriteFrame':
+				prop['name'] = 'backgroundSpriteFrame|Disabled'
+			if prop['name'] == 'isEnabled':
+				prop['name'] = 'userInteractionEnabled'
+
+		node['properties'].append({
+			'name': 'title',
+			'type': 'String',
+			'value': '',
+		})
+
+		if normalSpriteFrame is not None:
+			selectedSpriteFrame = copy.deepcopy(normalSpriteFrame)
+			selectedSpriteFrame['name'] = 'backgroundSpriteFrame|Selected'
+			node['properties'].append(selectedSpriteFrame)
+
+			size = imageSize(project, normalSpriteFrame['value'][1])
+			node['properties'].append({
+				'name': 'preferredSize',
+				'type': 'Size',
+				'value': [
+					size[0],
+					size[1],
+					0,
+					0,
+				],
+			})
 
 def convertOpacity(node):
 	for prop in node['properties']:
@@ -164,6 +241,7 @@ kCCBPositionTypeMultiplyResolution = 5
 
 def convertPosition(node):
 	posType = -1
+	positionProp = None
 	for prop in node['properties']:
 		if prop['type'] == 'Position':
 			value = prop['value']
@@ -193,14 +271,51 @@ def convertPosition(node):
 					value[1] /= 100.0
 					value[2] = CCPositionReferenceCornerBottomLeft
 					value[3] = value[4] = CCPositionUnitNormalized
+				positionProp = prop
+				break
 	
 	if posType == kCCBPositionTypePercent:
 		if 'animatedProperties' in node:
 			for index, prop in node['animatedProperties'].iteritems():
 				if 'position' in prop:
+					if positionProp is not None:
+						positionProp['baseValue'] = copy.deepcopy(positionProp['value'])
 					for keyframe in prop['position']['keyframes']:
 						keyframe['value'][0] /= 100.0
 						keyframe['value'][1] /= 100.0
+
+def convertSpriteFrames(node):
+	spriteFrameProp = None
+	for prop in node['properties']:
+		if prop['name'] == 'displayFrame':
+			prop['name'] = 'spriteFrame'
+			spriteFrameProp = prop
+			break
+	
+	if 'animatedProperties' in node:
+		if spriteFrameProp is not None:
+			spriteFrameProp['baseValue'] = [
+				spriteFrameProp['value'][1],
+				'Use regular file',
+			]
+		for index, prop in node['animatedProperties'].iteritems():
+			if 'displayFrame' in prop:
+				displayFrame = prop['displayFrame']
+				del prop['displayFrame']
+				prop['spriteFrame'] = displayFrame
+				for keyframe in prop['spriteFrame']['keyframes']:
+					keyframe['name'] = 'spriteFrame'
+
+def convertSize(node):
+	for prop in node['properties']:
+		if prop['type'] == 'Size':
+			value = prop['value']
+			if value[2] == 5:
+				value[2] = 0
+				if len(value) < 4:
+					value.append(0)
+				else:
+					value[3] = 0
 
 def convertColor3(node):
 	for prop in node['properties']:
@@ -229,7 +344,7 @@ def convertColor3(node):
 					while len(value) < 4:
 						value.append(1)
 
-def absoluteSize(node, parentSize):
+def absoluteSize(project, node, parentSize):
 	sizeProp = None
 	for prop in node['properties']:
 		if prop['name'] == 'contentSize':
@@ -237,6 +352,10 @@ def absoluteSize(node, parentSize):
 			break
 
 	if sizeProp is None:
+		for prop in node['properties']:
+			if prop['type'] == 'SpriteFrame':
+				return imageSize(project, prop['value'][1])
+
 		return [0, 0]
 	
 	absSize = [0, 0]
@@ -259,17 +378,37 @@ def absoluteSize(node, parentSize):
 	
 	return absSize
 
+def nonDestructivePath(f):
+	fileNameParts = os.path.splitext(f)
+	return fileNameParts[0] + '-new' + fileNameParts[1]
+
+def fixCCBPaths(node):
+	for prop in node['properties']:
+		if prop['type'] == 'CCBFile':
+			prop['value'] = nonDestructivePath(prop['value'])
+
 trace = []
 
-def process(parent, parentSize, node):
+def process(project, parent, parentSize, node, args):
 	try:
-		absSize = absoluteSize(node, parentSize)
+		absSize = absoluteSize(project, node, parentSize)
+
+		convertSize(node)
 
 		stripCCLayer(node)
+
+		stripTag(node)
+
+		stripCCMenu(project, node)
 
 		convertParticleSystem(node)
 
 		convertAndStripIgnoreAnchorPointForPosition(parent, parentSize, absSize, node)
+
+		if not args.destructive:
+			fixCCBPaths(node)
+
+		convertSpriteFrames(node)
 
 		convertPosition(node)
 
@@ -278,7 +417,8 @@ def process(parent, parentSize, node):
 		convertOpacity(node)
 
 		for child in node['children']:
-			process(node, absSize, child)
+			process(project, node, absSize, child, args)
+
 	except Exception:
 		klass = node.get('customClass')
 		if klass is None or klass == '':
@@ -291,21 +431,28 @@ def process(parent, parentSize, node):
 		raise
 
 if __name__ == '__main__':
-	import os
 	parser = argparse.ArgumentParser()
+	parser.add_argument('project', metavar = 'project', type = str, help = 'A CocosBuilder CCB project file')
 	parser.add_argument('files', metavar = 'file', type = str, nargs='+', help = 'A CocosBuilder CCB file to process')
+	parser.add_argument('--destructive', '-d', dest = 'destructive', action = 'store_true', default = False, help = 'Modify files in-place.')
 	args = parser.parse_args()
 
 	logging.basicConfig(level = logging.DEBUG)
+
+	project = plistlib.readPlist(args.project)
+	project['location'] = os.path.abspath(os.path.dirname(args.project))
 
 	for f in args.files:
 		logging.info('Processing %s...' % f)
 		doc = plistlib.readPlist(f)
 		
-		process(None, [480, 320], doc['nodeGraph'])
+		process(project, None, [480, 320], doc['nodeGraph'], args)
 
-		fileNameParts = os.path.splitext(f)
-		newFile = fileNameParts[0] + '-new' + fileNameParts[1]
+		if args.destructive:
+			newFile = f
+		else:
+			newFile = nonDestructivePath(f)
+
 		plistlib.writePlist(doc, newFile)
 
 		logging.info('Wrote %s' % newFile)
