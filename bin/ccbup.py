@@ -19,6 +19,7 @@ kCCBSizeTypeHorizontalPercent = 3
 kCCBSizeTypeVerticalPercent = 4
 kCCBSizeTypeMultiplyResolution = 5
 
+# Figure out the absolute position of a node from the bottom left
 def absolutePosition(node, parentSize):
 	positionProp = None
 	for prop in node['properties']:
@@ -51,6 +52,7 @@ def absolutePosition(node, parentSize):
 	
 	return absPt
 
+# Try to offset the absolute position of a node. This may or may not work.
 def offsetAbsolutePosition(positionProp, parentSize, offset):
 	posType = positionProp['value'][2]
 
@@ -82,6 +84,10 @@ def offsetAbsolutePosition(positionProp, parentSize, offset):
 	positionProp['value'][0] = finalPos[0]
 	positionProp['value'][1] = finalPos[1]
 
+# Convert CCLayer to CCNode
+# Convert CCLayerColor to CCNodeColor
+# Convert CCLayerGradient to CCNodeGradient
+# Remove deprecated properties
 def stripCCLayer(node):
 	isColorLayer = node['baseClass'] == 'CCLayerColor'
 	isGradientLayer = node['baseClass'] == 'CCLayerGradient'
@@ -100,12 +106,14 @@ def stripCCLayer(node):
 		if prop['name'] in stripProps:
 			props.remove(prop)
 
+# Remove tag property
 def stripTag(node):
 	props = node['properties']
 	for prop in list(props):
 		if prop['name'] == 'tag':
 			props.remove(prop)
 
+# Calculate the size of an image reference
 def imageSize(project, imagePath):
 	for resourcePath in project['resourcePaths']:
 		path = os.path.join(project['location'], resourcePath['path'])
@@ -128,6 +136,8 @@ def imageSize(project, imagePath):
 
 	return [0, 0]
 
+# Convert CCMenu to CCNode
+# Convert CCMenuItemImage to CCButton
 def stripCCMenu(project, node):
 	if node['baseClass'] == 'CCMenu':
 		node['baseClass'] = 'CCNode'
@@ -169,16 +179,21 @@ def stripCCMenu(project, node):
 				],
 			})
 
+# Set the type of a sequence channel and all its keyframes
 def setChannelType(channel, code):
 	channel['type'] = code
 	for keyframe in channel['keyframes']:
 		keyframe['type'] = code
 
+# Change callbackChannel type to 12
+# Change soundChannel type to 11
 def convertCallbacks(root):
 	for sequence in root['sequences']:
 		setChannelType(sequence['callbackChannel'], 12)
 		setChannelType(sequence['soundChannel'], 11)
 
+# Convert opacity from (0-255) range to (0-1) range
+# Change opacity keyframe type to 10
 def convertOpacity(node):
 	for prop in node['properties']:
 		if prop['name'] == 'opacity':
@@ -197,10 +212,12 @@ def convertOpacity(node):
 					keyframe['value'] /= 255.0
 					keyframe['type'] = 10
 
+# Convert CCParticleSystemQuad to CCParticleSystem
 def convertParticleSystem(node):
 	if node['baseClass'] == 'CCParticleSystemQuad':
 		node['baseClass'] = 'CCParticleSystem'
 
+# Remove ignoreAnchorPointForPosition property and attempt to offset the node to compensate
 def convertAndStripIgnoreAnchorPointForPosition(parent, parentSize, absSize, node):
 	props = node['properties']
 	convert = False
@@ -249,6 +266,8 @@ kCCBPositionTypeRelativeBottomRight = 3
 kCCBPositionTypePercent = 4
 kCCBPositionTypeMultiplyResolution = 5
 
+# Convert to new position format
+# Convert percentage values from (0-100) range to (0-1) range
 def convertPosition(node):
 	posType = -1
 	positionProp = None
@@ -294,6 +313,7 @@ def convertPosition(node):
 						keyframe['value'][0] /= 100.0
 						keyframe['value'][1] /= 100.0
 
+# Change displayFrame property to spriteFrame
 def convertSpriteFrames(node):
 	spriteFrameProp = None
 	for prop in node['properties']:
@@ -316,6 +336,7 @@ def convertSpriteFrames(node):
 				for keyframe in prop['spriteFrame']['keyframes']:
 					keyframe['name'] = 'spriteFrame'
 
+# Convert to new size format
 def convertSize(node):
 	for prop in node['properties']:
 		if prop['type'] == 'Size':
@@ -327,6 +348,7 @@ def convertSize(node):
 				else:
 					value[3] = 0
 
+# Convert RGB values from (0-255) range to (0-1) range
 def convertColor3(node):
 	for prop in node['properties']:
 		if prop['type'] == 'Color3':
@@ -339,8 +361,7 @@ def convertColor3(node):
 			value = prop.get('baseValue')
 			if value is not None:
 				for i in xrange(len(value)):
-					if value[i] > 1.0:
-						value[i] /= 255.0
+					value[i] /= 255.0
 				while len(value) < 4:
 					value.append(1)
 	
@@ -354,6 +375,7 @@ def convertColor3(node):
 					while len(value) < 4:
 						value.append(1)
 
+# Calculate absolute size of a node
 def absoluteSize(project, node, parentSize):
 	sizeProp = None
 	for prop in node['properties']:
@@ -388,10 +410,12 @@ def absoluteSize(project, node, parentSize):
 	
 	return absSize
 
+# Build a new path to write to in case we are doing this non-destructively
 def nonDestructivePath(f):
 	fileNameParts = os.path.splitext(f)
 	return fileNameParts[0] + '-new' + fileNameParts[1]
 
+# Fix CCBFile references if we are doing this non-destructively
 def fixCCBPaths(node):
 	for prop in node['properties']:
 		if prop['type'] == 'CCBFile':
@@ -399,6 +423,7 @@ def fixCCBPaths(node):
 
 trace = []
 
+# Process a CCNode
 def process(project, parent, parentSize, node, args):
 	try:
 		absSize = absoluteSize(project, node, parentSize)
