@@ -138,7 +138,7 @@ def imageSize(project, imagePath):
 
 # Convert CCMenu to CCNode
 # Convert CCMenuItemImage to CCButton
-def stripCCMenu(project, node):
+def convertCCMenu(project, node):
 	if node['baseClass'] == 'CCMenu':
 		node['baseClass'] = 'CCNode'
 	
@@ -434,7 +434,7 @@ def process(project, parent, parentSize, node, args):
 
 		stripTag(node)
 
-		stripCCMenu(project, node)
+		convertCCMenu(project, node)
 
 		convertParticleSystem(node)
 
@@ -466,7 +466,8 @@ def process(project, parent, parentSize, node, args):
 		raise
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser()
+	parser = argparse.ArgumentParser(description = 'Converts CocosBuilder 3 files to the SpriteBuilder 1.0 format.' +
+			' Visit https://github.com/sidebolt/CCBUpgrade for more info.')
 	parser.add_argument('project', metavar = 'project', type = str, help = 'A CocosBuilder CCB project file')
 	parser.add_argument('files', metavar = 'file', type = str, nargs='+', help = 'A CocosBuilder CCB file to process')
 	parser.add_argument('--destructive', '-d', dest = 'destructive', action = 'store_true', default = False, help = 'Modify files in-place.')
