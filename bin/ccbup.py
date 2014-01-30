@@ -169,6 +169,16 @@ def stripCCMenu(project, node):
 				],
 			})
 
+def setChannelType(channel, code):
+	channel['type'] = code
+	for keyframe in channel['keyframes']:
+		keyframe['type'] = code
+
+def convertCallbacks(root):
+	for sequence in root['sequences']:
+		setChannelType(sequence['callbackChannel'], 12)
+		setChannelType(sequence['soundChannel'], 11)
+
 def convertOpacity(node):
 	for prop in node['properties']:
 		if prop['name'] == 'opacity':
@@ -446,6 +456,8 @@ if __name__ == '__main__':
 		logging.info('Processing %s...' % f)
 		doc = plistlib.readPlist(f)
 		
+		convertCallbacks(doc)
+
 		process(project, None, [480, 320], doc['nodeGraph'], args)
 
 		if args.destructive:
