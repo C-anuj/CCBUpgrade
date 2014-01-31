@@ -19,6 +19,12 @@ kCCBSizeTypeHorizontalPercent = 3
 kCCBSizeTypeVerticalPercent = 4
 kCCBSizeTypeMultiplyResolution = 5
 
+CCSizeUnitPoints = 0
+CCSizeUnitUIPoints = 1
+CCSizeUnitNormalized = 2
+CCSizeUnitInsetPoints = 3
+CCSizeUnitInsetUIPoints = 4
+
 # Figure out the absolute position of a node from the bottom left
 def absolutePosition(node, parentSize):
 	positionProp = None
@@ -342,12 +348,52 @@ def convertSize(node):
 	for prop in node['properties']:
 		if prop['type'] == 'Size':
 			value = prop['value']
-			if value[2] == 5:
-				value[2] = 0
+
+			if value[2] == kCCBSizeTypeAbsolute:
+				value[2] = CCSizeUnitUIPoints
 				if len(value) < 4:
-					value.append(0)
+					value.append(CCSizeUnitUIPoints)
 				else:
-					value[3] = 0
+					value[3] = CCSizeUnitUIPoints
+
+			elif value[2] == kCCBSizeTypePercent:
+				value[0] /= 100.0
+				value[1] /= 100.0
+				value[2] = CCSizeUnitNormalized
+				if len(value) < 4:
+					value.append(CCSizeUnitNormalized)
+				else:
+					value[3] = CCSizeUnitNormalized
+
+			elif value[2] == kCCBSizeTypeRelativeContainer:
+				value[2] = CCSizeUnitInsetUIPoints
+				if len(value) < 4:
+					value.append(CCSizeUnitInsetUIPoints)
+				else:
+					value[3] = CCSizeUnitInsetUIPoints
+
+			elif value[2] == kCCBSizeTypeHorizontalPercent:
+				value[0] /= 100.0
+				value[2] = CCSizeUnitNormalized
+				if len(value) < 4:
+					value.append(CCSizeUnitUIPoints)
+				else:
+					value[3] = CCSizeUnitUIPoints
+
+			elif value[2] == kCCBSizeTypeVerticalPercent:
+				value[1] /= 100.0
+				value[2] = CCSizeUnitUIPoints
+				if len(value) < 4:
+					value.append(CCSizeUnitNormalized)
+				else:
+					value[3] = CCSizeUnitNormalized
+
+			elif value[2] == kCCBSizeTypeMultiplyResolution:
+				value[2] = CCSizeUnitPoints
+				if len(value) < 4:
+					value.append(CCSizeUnitPoints)
+				else:
+					value[3] = CCSizeUnitPoints
 
 # Convert RGB values from (0-255) range to (0-1) range
 def convertColor3(node):
