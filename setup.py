@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
 	name = 'CCBUpgrade',
-	version = '0.1.0',
+	version = '0.2.0',
 	author = 'Sidebolt Studios',
 	author_email = 'support@sidebolt.com',
 	scripts = ['bin/ccbup.py'],
