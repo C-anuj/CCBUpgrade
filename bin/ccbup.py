@@ -134,6 +134,7 @@ def imageSize(project, imagePath):
 		if os.path.isfile(finalPath):
 			return list(dimensions.dimensions(finalPath))[:2]
 
+	logging.warning('Failed to determine size of image \'%s\'' % imagePath)
 	return [0, 0]
 
 # Convert CCMenu to CCNode
